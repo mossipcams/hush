@@ -72,6 +72,9 @@ jobs:
       - name: Run mypy
         run: uv run mypy custom_components/hush
 
+      - name: Run pyright
+        run: uv run pyright
+
   test:
     name: Test
     runs-on: ubuntu-latest

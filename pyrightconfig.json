@@ -1,0 +1,12 @@
+{
+  "include": ["custom_components/hush"],
+  "exclude": ["**/__pycache__"],
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "standard",
+  "reportMissingImports": "warning",
+  "reportMissingTypeStubs": false,
+  "reportPrivateImportUsage": false,
+  "reportAttributeAccessIssue": "warning",
+  "reportOptionalSubscript": "warning",
+  "reportUnusedImport": "warning"
+}
