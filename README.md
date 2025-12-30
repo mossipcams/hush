@@ -1,5 +1,7 @@
 # Hush - Smart Notifications for Home Assistant
 
+[![CI](https://github.com/mossipcams/hush/actions/workflows/ci.yml/badge.svg)](https://github.com/mossipcams/hush/actions/workflows/ci.yml)
+
 The notification system Home Assistant should have shipped with.
 
 **One-liner:** Notifications that just work, with smart defaults that grow with you.
