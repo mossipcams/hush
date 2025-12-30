@@ -13,7 +13,7 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 
-from .classifier import classify_entity
+from .classifier import EntityClassifier
 from .const import (
     ATTR_CATEGORY,
     ATTR_DATA,
@@ -22,6 +22,7 @@ from .const import (
     ATTR_TITLE,
     CONF_CATEGORY_BEHAVIORS,
     CONF_DELIVERY_TARGET,
+    CONF_ENTITY_OVERRIDES,
     CONF_QUIET_HOURS_ENABLED,
     CONF_QUIET_HOURS_END,
     CONF_QUIET_HOURS_START,
@@ -71,10 +72,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     store = NotificationStore(hass, storage_path)
     await store.async_initialize()
 
+    # Initialize classifier with Home Assistant context
+    classifier = EntityClassifier(hass, entry)
+
     # Store runtime data
     hass.data[DOMAIN] = {
         "store": store,
         "entry": entry,
+        "classifier": classifier,
     }
 
     # Register the notification service
@@ -95,7 +100,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if category_str:
             category = Category(category_str)
         elif entity_id:
-            category = classify_entity(entity_id)
+            classifier: EntityClassifier = hass.data[DOMAIN]["classifier"]
+            category = classifier.classify(entity_id)
         else:
             category = Category.INFO
 
@@ -273,6 +279,8 @@ async def _async_register_websocket_api(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_get_notifications)
     websocket_api.async_register_command(hass, ws_get_config)
     websocket_api.async_register_command(hass, ws_save_config)
+    websocket_api.async_register_command(hass, ws_get_entity_overrides)
+    websocket_api.async_register_command(hass, ws_set_entity_override)
 
 
 @websocket_api.websocket_command(  # type: ignore[attr-defined]
@@ -389,5 +397,104 @@ async def ws_save_config(
         new_options[CONF_CATEGORY_BEHAVIORS] = new_config["category_behaviors"]
 
     hass.config_entries.async_update_entry(entry, data=new_data, options=new_options)
+
+    connection.send_result(msg["id"], {"success": True})
+
+
+@websocket_api.websocket_command({vol.Required("type"): "hush/get_entity_overrides"})  # type: ignore[attr-defined]
+@websocket_api.async_response  # type: ignore[attr-defined]
+async def ws_get_entity_overrides(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,  # type: ignore[name-defined]
+    msg: dict,  # type: ignore[type-arg]
+) -> None:
+    """Get entity category overrides and classification info."""
+    if DOMAIN not in hass.data:
+        connection.send_error(msg["id"], "not_configured", "Hush is not configured")
+        return
+
+    from homeassistant.helpers import entity_registry as er
+
+    entry: ConfigEntry = hass.data[DOMAIN]["entry"]
+    classifier: EntityClassifier = hass.data[DOMAIN]["classifier"]
+    overrides = entry.options.get(CONF_ENTITY_OVERRIDES, {})
+
+    # Get entities and their classification info
+    entity_registry = er.async_get(hass)
+    entities_info = []
+
+    # Include common entity domains that might send notifications
+    relevant_domains = {
+        "binary_sensor",
+        "sensor",
+        "lock",
+        "alarm_control_panel",
+        "siren",
+        "switch",
+        "light",
+        "cover",
+    }
+
+    for entity_entry in entity_registry.entities.values():
+        if entity_entry.domain not in relevant_domains:
+            continue
+
+        category, source = classifier.classify_with_source(entity_entry.entity_id)
+        entities_info.append(
+            {
+                "entity_id": entity_entry.entity_id,
+                "name": entity_entry.name or entity_entry.original_name or entity_entry.entity_id,
+                "device_class": entity_entry.device_class or entity_entry.original_device_class,
+                "category": category.value,
+                "source": source,
+                "has_override": entity_entry.entity_id in overrides,
+            }
+        )
+
+    # Sort by name
+    entities_info.sort(key=lambda x: str(x["name"]).lower())
+
+    connection.send_result(
+        msg["id"],
+        {
+            "overrides": overrides,
+            "entities": entities_info,
+        },
+    )
+
+
+@websocket_api.websocket_command(  # type: ignore[attr-defined]
+    {
+        vol.Required("type"): "hush/set_entity_override",
+        vol.Required("entity_id"): cv.string,
+        vol.Optional("category"): vol.Any(vol.In([c.value for c in Category]), None),
+    }
+)
+@websocket_api.async_response  # type: ignore[attr-defined]
+async def ws_set_entity_override(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,  # type: ignore[name-defined]
+    msg: dict,  # type: ignore[type-arg]
+) -> None:
+    """Set or remove an entity category override."""
+    if DOMAIN not in hass.data:
+        connection.send_error(msg["id"], "not_configured", "Hush is not configured")
+        return
+
+    entry: ConfigEntry = hass.data[DOMAIN]["entry"]
+    entity_id = msg["entity_id"]
+    category = msg.get("category")  # None means remove override
+
+    # Update overrides
+    current_overrides = dict(entry.options.get(CONF_ENTITY_OVERRIDES, {}))
+
+    if category is None:
+        current_overrides.pop(entity_id, None)
+    else:
+        current_overrides[entity_id] = category
+
+    # Save to config entry
+    new_options = {**entry.options, CONF_ENTITY_OVERRIDES: current_overrides}
+    hass.config_entries.async_update_entry(entry, options=new_options)
 
     connection.send_result(msg["id"], {"success": True})

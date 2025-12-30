@@ -2,17 +2,183 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from .const import (
-    DEVICE_PATTERNS,
-    MOTION_PATTERNS,
-    SAFETY_PATTERNS,
-    SECURITY_PATTERNS,
+    CONF_ENTITY_OVERRIDES,
+    DEVICE_CLASS_CATEGORY_MAP,
+    DEVICE_REGEX,
+    DOMAIN_CATEGORY_MAP,
+    MOTION_REGEX,
+    SAFETY_REGEX,
+    SECURITY_REGEX,
     Category,
 )
+
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.entity_registry import EntityRegistry
+
+
+class EntityClassifier:
+    """Classify entities into notification categories.
+
+    Uses a priority-based classification system:
+    1. User overrides (from config entry options) - highest priority
+    2. device_class from Home Assistant entity registry
+    3. Entity domain (e.g., lock, alarm_control_panel)
+    4. Pattern matching on entity_id (with word boundaries)
+    5. Default to INFO category
+    """
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        """Initialize the classifier.
+
+        Args:
+            hass: Home Assistant instance for entity registry access
+            entry: Config entry for user overrides
+        """
+        self._hass = hass
+        self._entry = entry
+        self._entity_registry: EntityRegistry | None = None
+
+    @property
+    def entity_registry(self) -> EntityRegistry:
+        """Lazily get the entity registry."""
+        if self._entity_registry is None:
+            from homeassistant.helpers import entity_registry as er
+
+            self._entity_registry = er.async_get(self._hass)
+        return self._entity_registry
+
+    def classify(self, entity_id: str) -> Category:
+        """Classify an entity into a notification category.
+
+        Priority order:
+        1. User overrides (from config entry options)
+        2. device_class from entity registry
+        3. Domain-based classification
+        4. Pattern matching (with word boundaries)
+        5. Default (INFO)
+
+        Args:
+            entity_id: The entity ID to classify
+
+        Returns:
+            The category for this entity
+        """
+        if not entity_id:
+            return Category.INFO
+
+        # 1. Check user overrides first (highest priority)
+        overrides = self._entry.options.get(CONF_ENTITY_OVERRIDES, {})
+        if entity_id in overrides:
+            return Category(overrides[entity_id])
+
+        # 2. Check device_class from entity registry
+        category = self._classify_by_device_class(entity_id)
+        if category:
+            return category
+
+        # 3. Check domain-based classification
+        category = self._classify_by_domain(entity_id)
+        if category:
+            return category
+
+        # 4. Fall back to pattern matching
+        return self._classify_by_pattern(entity_id)
+
+    def _classify_by_device_class(self, entity_id: str) -> Category | None:
+        """Classify based on entity registry device_class."""
+        entry = self.entity_registry.async_get(entity_id)
+        if not entry:
+            return None
+
+        # Use device_class (can be overridden) or original_device_class (from device)
+        device_class = entry.device_class or entry.original_device_class
+        if device_class and device_class in DEVICE_CLASS_CATEGORY_MAP:
+            return DEVICE_CLASS_CATEGORY_MAP[device_class]
+
+        return None
+
+    def _classify_by_domain(self, entity_id: str) -> Category | None:
+        """Classify based on entity domain."""
+        domain = entity_id.split(".")[0] if "." in entity_id else None
+        if domain and domain in DOMAIN_CATEGORY_MAP:
+            return DOMAIN_CATEGORY_MAP[domain]
+        return None
+
+    def _classify_by_pattern(self, entity_id: str) -> Category:
+        """Classify using regex patterns with word boundaries.
+
+        Priority: Safety > Security > Device > Motion > Info
+        """
+        # Safety patterns - highest priority
+        if SAFETY_REGEX.search(entity_id):
+            return Category.SAFETY
+
+        # Security patterns
+        if SECURITY_REGEX.search(entity_id):
+            return Category.SECURITY
+
+        # Device health patterns
+        if DEVICE_REGEX.search(entity_id):
+            return Category.DEVICE
+
+        # Motion patterns
+        if MOTION_REGEX.search(entity_id):
+            return Category.MOTION
+
+        # Default fallback
+        return Category.INFO
+
+    def classify_with_source(self, entity_id: str) -> tuple[Category, str]:
+        """Classify entity and return the classification source.
+
+        Useful for debugging and UI display.
+
+        Returns:
+            Tuple of (Category, source) where source is one of:
+            "override", "device_class", "domain", "pattern", "default"
+        """
+        if not entity_id:
+            return Category.INFO, "default"
+
+        # 1. User overrides
+        overrides = self._entry.options.get(CONF_ENTITY_OVERRIDES, {})
+        if entity_id in overrides:
+            return Category(overrides[entity_id]), "override"
+
+        # 2. Device class
+        category = self._classify_by_device_class(entity_id)
+        if category:
+            return category, "device_class"
+
+        # 3. Domain
+        category = self._classify_by_domain(entity_id)
+        if category:
+            return category, "domain"
+
+        # 4. Pattern matching
+        for pattern, cat in [
+            (SAFETY_REGEX, Category.SAFETY),
+            (SECURITY_REGEX, Category.SECURITY),
+            (DEVICE_REGEX, Category.DEVICE),
+            (MOTION_REGEX, Category.MOTION),
+        ]:
+            if pattern.search(entity_id):
+                return cat, "pattern"
+
+        return Category.INFO, "default"
 
 
 def classify_entity(entity_id: str) -> Category:
     """Infer notification category from entity_id patterns.
+
+    This is a legacy function for backwards compatibility.
+    For full classification with device_class and overrides,
+    use EntityClassifier.classify().
 
     Classification priority:
     1. Safety (smoke, CO, leak, flood) - highest priority
@@ -30,28 +196,21 @@ def classify_entity(entity_id: str) -> Category:
     if not entity_id:
         return Category.INFO
 
-    # Normalize for matching
-    entity_lower = entity_id.lower()
-
-    # Safety - highest priority (always notify)
-    for pattern in SAFETY_PATTERNS:
-        if pattern in entity_lower:
-            return Category.SAFETY
+    # Safety - highest priority
+    if SAFETY_REGEX.search(entity_id):
+        return Category.SAFETY
 
     # Security
-    for pattern in SECURITY_PATTERNS:
-        if pattern in entity_lower:
-            return Category.SECURITY
+    if SECURITY_REGEX.search(entity_id):
+        return Category.SECURITY
 
     # Device health
-    for pattern in DEVICE_PATTERNS:
-        if pattern in entity_lower:
-            return Category.DEVICE
+    if DEVICE_REGEX.search(entity_id):
+        return Category.DEVICE
 
-    # Motion (log only by default)
-    for pattern in MOTION_PATTERNS:
-        if pattern in entity_lower:
-            return Category.MOTION
+    # Motion
+    if MOTION_REGEX.search(entity_id):
+        return Category.MOTION
 
     # Default
     return Category.INFO
@@ -71,25 +230,18 @@ def classify_entity_with_confidence(entity_id: str) -> tuple[Category, float]:
     if not entity_id:
         return Category.INFO, 0.0
 
-    entity_lower = entity_id.lower()
+    # Check patterns and collect matches
     matches: list[tuple[Category, str]] = []
 
-    # Check all patterns
-    for pattern in SAFETY_PATTERNS:
-        if pattern in entity_lower:
-            matches.append((Category.SAFETY, pattern))
-
-    for pattern in SECURITY_PATTERNS:
-        if pattern in entity_lower:
-            matches.append((Category.SECURITY, pattern))
-
-    for pattern in DEVICE_PATTERNS:
-        if pattern in entity_lower:
-            matches.append((Category.DEVICE, pattern))
-
-    for pattern in MOTION_PATTERNS:
-        if pattern in entity_lower:
-            matches.append((Category.MOTION, pattern))
+    for pattern, cat in [
+        (SAFETY_REGEX, Category.SAFETY),
+        (SECURITY_REGEX, Category.SECURITY),
+        (DEVICE_REGEX, Category.DEVICE),
+        (MOTION_REGEX, Category.MOTION),
+    ]:
+        match = pattern.search(entity_id)
+        if match:
+            matches.append((cat, match.group()))
 
     if not matches:
         return Category.INFO, 0.0

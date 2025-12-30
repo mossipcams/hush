@@ -117,6 +117,9 @@ let HushSettingsPanel = class HushSettingsPanel extends i {
         this._loading = true;
         this._saving = false;
         this._showAdvanced = false;
+        this._entities = [];
+        this._entityFilter = "";
+        this._loadingEntities = false;
     }
     static { this.styles = i$3 `
     :host {
@@ -358,9 +361,89 @@ let HushSettingsPanel = class HushSettingsPanel extends i {
       border-radius: 8px;
       margin-bottom: 16px;
     }
+
+    .entity-filter {
+      margin-bottom: 16px;
+    }
+
+    .entity-filter input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--divider-color);
+      border-radius: 8px;
+      background: var(--primary-background-color);
+      color: var(--primary-text-color);
+      font-size: 0.95em;
+    }
+
+    .entity-list {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .entity-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-bottom: 1px solid var(--divider-color);
+    }
+
+    .entity-row:last-child {
+      border-bottom: none;
+    }
+
+    .entity-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .entity-name {
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .entity-id {
+      font-size: 0.8em;
+      color: var(--secondary-text-color);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .entity-source {
+      font-size: 0.75em;
+      color: var(--secondary-text-color);
+      margin-top: 2px;
+    }
+
+    .entity-source.override {
+      color: var(--primary-color);
+      font-weight: 500;
+    }
+
+    .entity-select {
+      width: 120px;
+      padding: 8px;
+      font-size: 0.9em;
+    }
+
+    .no-entities {
+      text-align: center;
+      padding: 24px;
+      color: var(--secondary-text-color);
+    }
   `; }
     async firstUpdated(_changedProps) {
         await this._loadConfig();
+        // Don't load entities on first load - wait until Advanced is expanded
+    }
+    updated(changedProps) {
+        if (changedProps.has("_showAdvanced") && this._showAdvanced && this._entities.length === 0) {
+            this._loadEntityOverrides();
+        }
     }
     async _loadConfig() {
         if (!this.hass)
@@ -400,6 +483,38 @@ let HushSettingsPanel = class HushSettingsPanel extends i {
         }
         finally {
             this._saving = false;
+        }
+    }
+    async _loadEntityOverrides() {
+        if (!this.hass)
+            return;
+        this._loadingEntities = true;
+        try {
+            const response = await this.hass.callWS({ type: "hush/get_entity_overrides" });
+            this._entities = response.entities;
+        }
+        catch (err) {
+            console.error("Failed to load entity overrides:", err);
+        }
+        finally {
+            this._loadingEntities = false;
+        }
+    }
+    async _setEntityOverride(entityId, category) {
+        if (!this.hass)
+            return;
+        try {
+            await this.hass.callWS({
+                type: "hush/set_entity_override",
+                entity_id: entityId,
+                category: category,
+            });
+            // Reload entities to get updated classification info
+            await this._loadEntityOverrides();
+        }
+        catch (err) {
+            console.error("Failed to set entity override:", err);
+            this._error = "Failed to save entity override";
         }
     }
     render() {
@@ -521,7 +636,99 @@ let HushSettingsPanel = class HushSettingsPanel extends i {
         <div class="card-title">Category Behavior</div>
         ${categories.map((cat) => this._renderCategoryRow(cat))}
       </div>
+
+      <div class="card" style="margin-top: 16px">
+        <div class="card-title">Entity Classification Overrides</div>
+        <div class="help-text" style="margin-bottom: 16px">
+          Override automatic classification for specific entities. By default,
+          entities are classified by their device class or name patterns.
+        </div>
+        ${this._renderEntityOverrides()}
+      </div>
     `;
+    }
+    _renderEntityOverrides() {
+        if (this._loadingEntities) {
+            return b `<div class="loading">Loading entities...</div>`;
+        }
+        if (this._entities.length === 0) {
+            return b `<div class="no-entities">No entities found</div>`;
+        }
+        // Filter entities by search
+        const filter = this._entityFilter.toLowerCase();
+        const filteredEntities = filter
+            ? this._entities.filter((e) => e.name.toLowerCase().includes(filter) ||
+                e.entity_id.toLowerCase().includes(filter))
+            : this._entities;
+        // Show entities with overrides first, then limit to 50
+        const sortedEntities = [...filteredEntities].sort((a, b) => {
+            if (a.has_override && !b.has_override)
+                return -1;
+            if (!a.has_override && b.has_override)
+                return 1;
+            return 0;
+        });
+        const displayEntities = sortedEntities.slice(0, 50);
+        return b `
+      <div class="entity-filter">
+        <input
+          type="text"
+          placeholder="Search entities..."
+          .value=${this._entityFilter}
+          @input=${(e) => {
+            this._entityFilter = e.target.value;
+        }}
+        />
+      </div>
+      <div class="entity-list">
+        ${displayEntities.map((entity) => this._renderEntityRow(entity))}
+        ${sortedEntities.length > 50
+            ? b `<div class="no-entities">
+              Showing 50 of ${sortedEntities.length} entities. Use search to
+              find more.
+            </div>`
+            : ""}
+      </div>
+    `;
+    }
+    _renderEntityRow(entity) {
+        const sourceText = entity.has_override
+            ? "Manual override"
+            : entity.source === "device_class"
+                ? `Auto: device class (${entity.device_class})`
+                : entity.source === "domain"
+                    ? "Auto: domain"
+                    : entity.source === "pattern"
+                        ? "Auto: name pattern"
+                        : "Auto: default";
+        const allCategories = ["", "safety", "security", "device", "motion", "info"];
+        return b `
+      <div class="entity-row">
+        <div class="entity-info">
+          <div class="entity-name">${entity.name}</div>
+          <div class="entity-id">${entity.entity_id}</div>
+          <div class="entity-source ${entity.has_override ? "override" : ""}">
+            ${sourceText}
+          </div>
+        </div>
+        <select
+          class="entity-select"
+          .value=${entity.has_override ? entity.category : ""}
+          @change=${(e) => this._onEntityCategoryChange(entity, e)}
+        >
+          ${allCategories.map((cat) => b `
+              <option value=${cat}>
+                ${cat === "" ? "Auto-detect" : CATEGORY_NAMES[cat]}
+              </option>
+            `)}
+        </select>
+      </div>
+    `;
+    }
+    _onEntityCategoryChange(entity, e) {
+        const target = e.target;
+        const value = target.value;
+        this._setEntityOverride(entity.entity_id, value === "" ? null : value);
     }
     _renderCategoryRow(category) {
         const icon = CATEGORY_ICONS[category];
@@ -609,6 +816,15 @@ __decorate([
 __decorate([
     r()
 ], HushSettingsPanel.prototype, "_showAdvanced", void 0);
+__decorate([
+    r()
+], HushSettingsPanel.prototype, "_entities", void 0);
+__decorate([
+    r()
+], HushSettingsPanel.prototype, "_entityFilter", void 0);
+__decorate([
+    r()
+], HushSettingsPanel.prototype, "_loadingEntities", void 0);
 HushSettingsPanel = __decorate([
     t("hush-settings-panel")
 ], HushSettingsPanel);

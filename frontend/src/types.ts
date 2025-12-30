@@ -29,6 +29,22 @@ export interface HushConfig {
   category_behaviors: Partial<Record<Category, CategoryBehavior>>;
 }
 
+export type ClassificationSource =
+  | "override"
+  | "device_class"
+  | "domain"
+  | "pattern"
+  | "default";
+
+export interface EntityInfo {
+  entity_id: string;
+  name: string;
+  device_class: string | null;
+  category: Category;
+  source: ClassificationSource;
+  has_override: boolean;
+}
+
 export type CategoryBehavior =
   | "always_notify"
   | "notify_respect_quiet"

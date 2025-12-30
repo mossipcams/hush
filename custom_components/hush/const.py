@@ -1,7 +1,13 @@
 """Constants for the Hush integration."""
 
+from __future__ import annotations
+
+import re
 from enum import StrEnum
-from typing import Final
+from typing import TYPE_CHECKING, Final
+
+if TYPE_CHECKING:
+    from re import Pattern
 
 DOMAIN: Final = "hush"
 
@@ -11,6 +17,7 @@ CONF_QUIET_HOURS_ENABLED: Final = "quiet_hours_enabled"
 CONF_QUIET_HOURS_START: Final = "quiet_hours_start"
 CONF_QUIET_HOURS_END: Final = "quiet_hours_end"
 CONF_CATEGORY_BEHAVIORS: Final = "category_behaviors"
+CONF_ENTITY_OVERRIDES: Final = "entity_overrides"
 
 # Default values
 DEFAULT_QUIET_HOURS_ENABLED: Final = True
@@ -72,12 +79,71 @@ CATEGORY_NAMES: dict[Category, str] = {
 }
 
 # Classification patterns (entity_id substring -> category)
+# Legacy pattern sets (kept for backwards compatibility)
 SAFETY_PATTERNS: Final = frozenset(
     {"smoke", "co2", "carbon", "leak", "flood", "water_sensor", "gas"}
 )
 SECURITY_PATTERNS: Final = frozenset({"door", "window", "lock", "alarm", "siren", "garage"})
 DEVICE_PATTERNS: Final = frozenset({"battery", "offline", "unavailable", "connectivity"})
 MOTION_PATTERNS: Final = frozenset({"motion", "occupancy", "presence"})
+
+# Compiled regex patterns with word boundaries to prevent false positives
+# e.g., "indoor" won't match "door", but "front_door" will
+# Uses lookbehind/lookahead that excludes letters but allows underscores/dots
+SAFETY_REGEX: Pattern[str] = re.compile(
+    r"(?<![a-zA-Z])(smoke|co2|carbon|leak|flood|water_sensor|gas)(?![a-zA-Z])",
+    re.IGNORECASE,
+)
+SECURITY_REGEX: Pattern[str] = re.compile(
+    r"(?<![a-zA-Z])(door|window|lock|alarm|siren|garage)(?![a-zA-Z])",
+    re.IGNORECASE,
+)
+DEVICE_REGEX: Pattern[str] = re.compile(
+    r"(?<![a-zA-Z])(battery|offline|unavailable|connectivity)(?![a-zA-Z])",
+    re.IGNORECASE,
+)
+MOTION_REGEX: Pattern[str] = re.compile(
+    r"(?<![a-zA-Z])(motion|occupancy|presence)(?![a-zA-Z])",
+    re.IGNORECASE,
+)
+
+# Device class to category mapping (binary_sensor device classes)
+DEVICE_CLASS_CATEGORY_MAP: dict[str, Category] = {
+    # Safety - highest priority
+    "smoke": Category.SAFETY,
+    "carbon_monoxide": Category.SAFETY,
+    "gas": Category.SAFETY,
+    "moisture": Category.SAFETY,
+    "heat": Category.SAFETY,
+    "safety": Category.SAFETY,
+    # Security
+    "door": Category.SECURITY,
+    "window": Category.SECURITY,
+    "lock": Category.SECURITY,
+    "garage_door": Category.SECURITY,
+    "opening": Category.SECURITY,
+    "tamper": Category.SECURITY,
+    # Device health
+    "battery": Category.DEVICE,
+    "battery_charging": Category.DEVICE,
+    "connectivity": Category.DEVICE,
+    "problem": Category.DEVICE,
+    "plug": Category.DEVICE,
+    "power": Category.DEVICE,
+    "update": Category.DEVICE,
+    # Motion
+    "motion": Category.MOTION,
+    "occupancy": Category.MOTION,
+    "presence": Category.MOTION,
+    "moving": Category.MOTION,
+}
+
+# Entity domain to category mapping (fallback for entities without device_class)
+DOMAIN_CATEGORY_MAP: dict[str, Category] = {
+    "alarm_control_panel": Category.SECURITY,
+    "lock": Category.SECURITY,
+    "siren": Category.SECURITY,
+}
 
 # Service
 SERVICE_NOTIFY: Final = "notify"

@@ -365,8 +365,8 @@ class TestAsyncRegisterWebsocketApi:
         with patch("custom_components.hush.websocket_api") as mock_ws_api:
             await _async_register_websocket_api(mock_hass)
 
-            # Should register 3 commands
-            assert mock_ws_api.async_register_command.call_count == 3
+            # Should register 5 commands (notifications, config, save_config, entity_overrides, set_entity_override)
+            assert mock_ws_api.async_register_command.call_count == 5
 
 
 class TestWsGetNotifications:
@@ -604,12 +604,24 @@ class TestAsyncSetupEntry:
 
         mock_hass.services.async_register = MagicMock(side_effect=capture_handler)
 
+        # Mock entity registry
+        mock_entity_registry = MagicMock()
+        mock_entity_registry.async_get.return_value = None
+
         with patch("custom_components.hush.NotificationStore", return_value=mock_store):
             with patch(
                 "custom_components.hush._async_register_websocket_api", new_callable=AsyncMock
             ):
                 with patch("custom_components.hush._async_register_panel", new_callable=AsyncMock):
-                    await async_setup_entry(mock_hass, mock_config_entry)
+                    with patch(
+                        "homeassistant.helpers.entity_registry.async_get",
+                        return_value=mock_entity_registry,
+                    ):
+                        await async_setup_entry(mock_hass, mock_config_entry)
+
+        # Inject mock entity registry into classifier
+        classifier = mock_hass.data["hush"]["classifier"]
+        classifier._entity_registry = mock_entity_registry
 
         # Create a mock service call with entity_id
         mock_call = MagicMock(spec=ServiceCall)
