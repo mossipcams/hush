@@ -5,6 +5,9 @@ description = "Smart notifications for Home Assistant - the notification system 
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.12"
+dependencies = [
+    "aiosqlite>=0.20.0",
+]
 authors = [{ name = "mossipcams" }]
 keywords = ["homeassistant", "notifications", "smart-home"]
 
@@ -34,6 +37,10 @@ select = [
 ]
 ignore = [
     "E501",   # line too long (handled by formatter)
+    "TCH",    # type-checking imports - HA uses runtime imports
+    "ARG",    # unused arguments - HA callbacks require specific signatures
+    "RUF001", # ambiguous unicode - legitimate emoji use
+    "SIM117", # nested with - more readable for multiple patches
 ]
 
 [tool.ruff.lint.isort]
@@ -51,6 +58,14 @@ module = [
     "aiosqlite.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "custom_components.*",
+    "custom_components.hush.*",
+]
+# HA websocket_api has incomplete type exports
+disable_error_code = ["attr-defined", "name-defined", "type-arg"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

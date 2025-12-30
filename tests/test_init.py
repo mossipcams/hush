@@ -2,25 +2,23 @@
 
 from __future__ import annotations
 
-from datetime import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from homeassistant.core import HomeAssistant, ServiceCall, Context
+from homeassistant.core import HomeAssistant, ServiceCall
 
 from custom_components.hush import (
+    _async_register_panel,
+    _async_register_websocket_api,
+    _is_quiet_hours,
+    _should_deliver,
+    async_reload_entry,
     async_setup,
     async_setup_entry,
     async_unload_entry,
-    async_reload_entry,
-    _should_deliver,
-    _is_quiet_hours,
-    _async_register_panel,
-    _async_register_websocket_api,
-    ws_get_notifications,
     ws_get_config,
+    ws_get_notifications,
     ws_save_config,
 )
 from custom_components.hush.const import (
@@ -44,12 +42,14 @@ def mock_hass() -> MagicMock:
     hass.config = MagicMock()
     hass.config.path = MagicMock(return_value="/tmp/hass_test")
     hass.services = MagicMock()
-    hass.services.async_services = MagicMock(return_value={
-        "notify": {
-            "mobile_app_test": {},
-            "persistent_notification": {},
+    hass.services.async_services = MagicMock(
+        return_value={
+            "notify": {
+                "mobile_app_test": {},
+                "persistent_notification": {},
+            }
         }
-    })
+    )
     hass.services.async_call = AsyncMock()
     hass.services.async_register = MagicMock()
     hass.services.async_remove = MagicMock()
@@ -102,7 +102,9 @@ class TestIsQuietHours:
     using a reference implementation. Here we test the actual function integration.
     """
 
-    def test_quiet_hours_uses_config_values(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
+    def test_quiet_hours_uses_config_values(
+        self, mock_hass: MagicMock, mock_config_entry: MagicMock
+    ) -> None:
         """Test that _is_quiet_hours uses config entry values."""
         mock_config_entry.options[CONF_QUIET_HOURS_START] = "22:00"
         mock_config_entry.options[CONF_QUIET_HOURS_END] = "07:00"
@@ -111,7 +113,9 @@ class TestIsQuietHours:
         result = _is_quiet_hours(mock_hass, mock_config_entry)
         assert isinstance(result, bool)
 
-    def test_quiet_hours_handles_same_day_window(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
+    def test_quiet_hours_handles_same_day_window(
+        self, mock_hass: MagicMock, mock_config_entry: MagicMock
+    ) -> None:
         """Test same-day quiet hours window."""
         mock_config_entry.options[CONF_QUIET_HOURS_START] = "14:00"
         mock_config_entry.options[CONF_QUIET_HOURS_END] = "16:00"
@@ -292,8 +296,12 @@ class TestAsyncReloadEntry:
         self, mock_hass: MagicMock, mock_config_entry: MagicMock
     ) -> None:
         """Test that reload calls unload and then setup."""
-        with patch("custom_components.hush.async_unload_entry", new_callable=AsyncMock) as mock_unload:
-            with patch("custom_components.hush.async_setup_entry", new_callable=AsyncMock) as mock_setup:
+        with patch(
+            "custom_components.hush.async_unload_entry", new_callable=AsyncMock
+        ) as mock_unload:
+            with patch(
+                "custom_components.hush.async_setup_entry", new_callable=AsyncMock
+            ) as mock_setup:
                 await async_reload_entry(mock_hass, mock_config_entry)
 
                 mock_unload.assert_called_once_with(mock_hass, mock_config_entry)
@@ -308,7 +316,6 @@ class TestAsyncRegisterPanel:
         """Test that panel registration is skipped when JS file doesn't exist."""
         # Create a temp directory structure that doesn't have the panel JS
         import tempfile
-        import os
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # The function uses Path(__file__).parent / "hush-panel.js"
@@ -378,11 +385,13 @@ class TestWsGetNotifications:
         """Create a mock notification store."""
         store = MagicMock()
         store.async_get_recent = AsyncMock(return_value=[])
-        store.async_get_today_stats = AsyncMock(return_value={
-            "total": 5,
-            "safety_count": 1,
-            "delivered_count": 3,
-        })
+        store.async_get_today_stats = AsyncMock(
+            return_value={
+                "total": 5,
+                "safety_count": 1,
+                "delivered_count": 3,
+            }
+        )
         return store
 
     @pytest.mark.asyncio
@@ -414,7 +423,9 @@ class TestWsGetNotifications:
         handler = ws_get_notifications.__wrapped__
         await handler(mock_hass, mock_connection, msg)
 
-        mock_connection.send_error.assert_called_once_with(1, "not_configured", "Hush is not configured")
+        mock_connection.send_error.assert_called_once_with(
+            1, "not_configured", "Hush is not configured"
+        )
 
 
 class TestWsGetConfig:
@@ -458,7 +469,9 @@ class TestWsGetConfig:
         handler = ws_get_config.__wrapped__
         await handler(mock_hass, mock_connection, msg)
 
-        mock_connection.send_error.assert_called_once_with(1, "not_configured", "Hush is not configured")
+        mock_connection.send_error.assert_called_once_with(
+            1, "not_configured", "Hush is not configured"
+        )
 
 
 class TestWsSaveConfig:
@@ -507,7 +520,9 @@ class TestWsSaveConfig:
         handler = ws_save_config.__wrapped__
         await handler(mock_hass, mock_connection, msg)
 
-        mock_connection.send_error.assert_called_once_with(1, "not_configured", "Hush is not configured")
+        mock_connection.send_error.assert_called_once_with(
+            1, "not_configured", "Hush is not configured"
+        )
 
 
 class TestAsyncSetupEntry:
@@ -528,7 +543,9 @@ class TestAsyncSetupEntry:
     ) -> None:
         """Test that setup_entry initializes the storage."""
         with patch("custom_components.hush.NotificationStore", return_value=mock_store):
-            with patch("custom_components.hush._async_register_websocket_api", new_callable=AsyncMock):
+            with patch(
+                "custom_components.hush._async_register_websocket_api", new_callable=AsyncMock
+            ):
                 with patch("custom_components.hush._async_register_panel", new_callable=AsyncMock):
                     result = await async_setup_entry(mock_hass, mock_config_entry)
 
@@ -550,7 +567,9 @@ class TestAsyncSetupEntry:
         mock_hass.services.async_register = MagicMock(side_effect=capture_handler)
 
         with patch("custom_components.hush.NotificationStore", return_value=mock_store):
-            with patch("custom_components.hush._async_register_websocket_api", new_callable=AsyncMock):
+            with patch(
+                "custom_components.hush._async_register_websocket_api", new_callable=AsyncMock
+            ):
                 with patch("custom_components.hush._async_register_panel", new_callable=AsyncMock):
                     await async_setup_entry(mock_hass, mock_config_entry)
 
@@ -586,7 +605,9 @@ class TestAsyncSetupEntry:
         mock_hass.services.async_register = MagicMock(side_effect=capture_handler)
 
         with patch("custom_components.hush.NotificationStore", return_value=mock_store):
-            with patch("custom_components.hush._async_register_websocket_api", new_callable=AsyncMock):
+            with patch(
+                "custom_components.hush._async_register_websocket_api", new_callable=AsyncMock
+            ):
                 with patch("custom_components.hush._async_register_panel", new_callable=AsyncMock):
                     await async_setup_entry(mock_hass, mock_config_entry)
 
@@ -622,7 +643,9 @@ class TestAsyncSetupEntry:
         }
 
         with patch("custom_components.hush.NotificationStore", return_value=mock_store):
-            with patch("custom_components.hush._async_register_websocket_api", new_callable=AsyncMock):
+            with patch(
+                "custom_components.hush._async_register_websocket_api", new_callable=AsyncMock
+            ):
                 with patch("custom_components.hush._async_register_panel", new_callable=AsyncMock):
                     await async_setup_entry(mock_hass, mock_config_entry)
 
@@ -655,7 +678,9 @@ class TestAsyncSetupEntry:
         mock_hass.services.async_register = MagicMock(side_effect=capture_handler)
 
         with patch("custom_components.hush.NotificationStore", return_value=mock_store):
-            with patch("custom_components.hush._async_register_websocket_api", new_callable=AsyncMock):
+            with patch(
+                "custom_components.hush._async_register_websocket_api", new_callable=AsyncMock
+            ):
                 with patch("custom_components.hush._async_register_panel", new_callable=AsyncMock):
                     await async_setup_entry(mock_hass, mock_config_entry)
 

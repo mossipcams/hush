@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { html, fixture } from "@open-wc/testing";
 import { HushHistoryCard } from "./hush-history-card";
 import type { NotificationRecord, TodayStats } from "./types";
@@ -271,7 +271,7 @@ describe("HushHistoryCard", () => {
 
     it("should return stub config", () => {
       const stubConfig = (
-        HushHistoryCard as unknown as { getStubConfig: () => object }
+        HushHistoryCard as unknown as { getStubConfig: () => { type: string; title: string; limit: number } }
       ).getStubConfig();
       expect(stubConfig.type).toBe("custom:hush-history-card");
       expect(stubConfig.title).toBe("Recent Notifications");

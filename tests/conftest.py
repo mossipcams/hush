@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Generator
 from pathlib import Path
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
@@ -52,12 +49,14 @@ def mock_hass() -> HomeAssistant:
     hass.config = MagicMock()
     hass.config.path = MagicMock(return_value="/tmp/hass")
     hass.services = MagicMock()
-    hass.services.async_services = MagicMock(return_value={
-        "notify": {
-            "mobile_app_test": {},
-            "persistent_notification": {},
+    hass.services.async_services = MagicMock(
+        return_value={
+            "notify": {
+                "mobile_app_test": {},
+                "persistent_notification": {},
+            }
         }
-    })
+    )
     hass.services.async_call = AsyncMock()
     hass.services.async_register = MagicMock()
     hass.services.async_remove = MagicMock()

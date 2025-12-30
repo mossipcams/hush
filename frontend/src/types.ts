@@ -26,7 +26,7 @@ export interface HushConfig {
   quiet_hours_enabled: boolean;
   quiet_hours_start: string;
   quiet_hours_end: string;
-  category_behaviors: Record<Category, CategoryBehavior>;
+  category_behaviors: Partial<Record<Category, CategoryBehavior>>;
 }
 
 export type CategoryBehavior =

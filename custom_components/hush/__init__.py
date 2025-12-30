@@ -7,11 +7,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import voluptuous as vol
-
 from homeassistant.components import websocket_api
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 
 from .classifier import classify_entity
@@ -127,7 +126,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 if title:
                     service_data["title"] = title
                 # Pass through extra data (for mobile app features like actions)
-                extra_data = {k: v for k, v in data.items() if k not in (ATTR_CATEGORY, ATTR_ENTITY_ID)}
+                extra_data = {
+                    k: v for k, v in data.items() if k not in (ATTR_CATEGORY, ATTR_ENTITY_ID)
+                }
                 if extra_data:
                     service_data["data"] = extra_data
 
@@ -140,9 +141,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             should_deliver,
         )
 
-    hass.services.async_register(
-        DOMAIN, SERVICE_NOTIFY, async_handle_notify, schema=SERVICE_SCHEMA
-    )
+    hass.services.async_register(DOMAIN, SERVICE_NOTIFY, async_handle_notify, schema=SERVICE_SCHEMA)
 
     # Set up options update listener
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
@@ -252,9 +251,7 @@ async def _async_register_panel(hass: HomeAssistant) -> None:
             cache_headers=False,
         )
         # Register card as a frontend resource
-        hass.components.frontend.async_register_frontend_url_path(
-            "/hush/hush-history-card.js"
-        )
+        hass.components.frontend.async_register_frontend_url_path("/hush/hush-history-card.js")
 
     hass.components.frontend.async_register_built_in_panel(
         component_name="custom",
@@ -278,17 +275,17 @@ async def _async_register_websocket_api(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_save_config)
 
 
-@websocket_api.websocket_command(
+@websocket_api.websocket_command(  # type: ignore[attr-defined]
     {
         vol.Required("type"): "hush/get_notifications",
         vol.Optional("limit", default=50): vol.All(vol.Coerce(int), vol.Range(min=1, max=100)),
     }
 )
-@websocket_api.async_response
+@websocket_api.async_response  # type: ignore[attr-defined]
 async def ws_get_notifications(
     hass: HomeAssistant,
-    connection: websocket_api.ActiveConnection,
-    msg: dict,
+    connection: websocket_api.ActiveConnection,  # type: ignore[name-defined]
+    msg: dict,  # type: ignore[type-arg]
 ) -> None:
     """Handle get_notifications WebSocket command."""
     if DOMAIN not in hass.data:
@@ -310,12 +307,12 @@ async def ws_get_notifications(
     )
 
 
-@websocket_api.websocket_command({vol.Required("type"): "hush/get_config"})
-@websocket_api.async_response
+@websocket_api.websocket_command({vol.Required("type"): "hush/get_config"})  # type: ignore[attr-defined]
+@websocket_api.async_response  # type: ignore[attr-defined]
 async def ws_get_config(
     hass: HomeAssistant,
-    connection: websocket_api.ActiveConnection,
-    msg: dict,
+    connection: websocket_api.ActiveConnection,  # type: ignore[name-defined]
+    msg: dict,  # type: ignore[type-arg]
 ) -> None:
     """Handle get_config WebSocket command."""
     if DOMAIN not in hass.data:
@@ -329,14 +326,18 @@ async def ws_get_config(
     notify_domain = hass.services.async_services().get("notify", {})
     for service_name in notify_domain:
         if service_name not in ("hush", "persistent_notification"):
-            notify_services.append({
-                "service": f"notify.{service_name}",
-                "name": service_name.replace("_", " ").title(),
-            })
+            notify_services.append(
+                {
+                    "service": f"notify.{service_name}",
+                    "name": service_name.replace("_", " ").title(),
+                }
+            )
 
     config = {
         "delivery_target": entry.data.get(CONF_DELIVERY_TARGET, ""),
-        "quiet_hours_enabled": entry.options.get(CONF_QUIET_HOURS_ENABLED, DEFAULT_QUIET_HOURS_ENABLED),
+        "quiet_hours_enabled": entry.options.get(
+            CONF_QUIET_HOURS_ENABLED, DEFAULT_QUIET_HOURS_ENABLED
+        ),
         "quiet_hours_start": entry.options.get(CONF_QUIET_HOURS_START, DEFAULT_QUIET_HOURS_START),
         "quiet_hours_end": entry.options.get(CONF_QUIET_HOURS_END, DEFAULT_QUIET_HOURS_END),
         "category_behaviors": entry.options.get(CONF_CATEGORY_BEHAVIORS, {}),
@@ -351,17 +352,17 @@ async def ws_get_config(
     )
 
 
-@websocket_api.websocket_command(
+@websocket_api.websocket_command(  # type: ignore[attr-defined]
     {
         vol.Required("type"): "hush/save_config",
         vol.Required("config"): dict,
     }
 )
-@websocket_api.async_response
+@websocket_api.async_response  # type: ignore[attr-defined]
 async def ws_save_config(
     hass: HomeAssistant,
-    connection: websocket_api.ActiveConnection,
-    msg: dict,
+    connection: websocket_api.ActiveConnection,  # type: ignore[name-defined]
+    msg: dict,  # type: ignore[type-arg]
 ) -> None:
     """Handle save_config WebSocket command."""
     if DOMAIN not in hass.data:

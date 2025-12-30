@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import aiosqlite
 
-from .const import Category, DB_NAME
+from .const import DB_NAME, Category
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -42,7 +42,7 @@ class NotificationRecord:
         self.delivered = delivered
         self.collapsed_count = collapsed_count
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for API responses."""
         return {
             "id": self.id,
@@ -119,7 +119,7 @@ class NotificationStore:
             raise RuntimeError("Database not initialized")
 
         notification_id = str(uuid.uuid4())
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now(UTC).isoformat()
 
         await self._db.execute(
             """
@@ -153,14 +153,14 @@ class NotificationStore:
         rows = await cursor.fetchall()
         return [self._row_to_record(row) for row in rows]
 
-    async def async_get_today_stats(self) -> dict:
+    async def async_get_today_stats(self) -> dict[str, int]:
         """Get notification statistics for today."""
         if not self._db:
             raise RuntimeError("Database not initialized")
 
-        today_start = datetime.now(timezone.utc).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        ).isoformat()
+        today_start = (
+            datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        )
 
         cursor = await self._db.execute(
             """
@@ -175,6 +175,8 @@ class NotificationStore:
         )
 
         row = await cursor.fetchone()
+        if row is None:
+            return {"total": 0, "safety_count": 0, "delivered_count": 0}
         return {
             "total": row["total"] or 0,
             "safety_count": row["safety_count"] or 0,
@@ -189,7 +191,7 @@ class NotificationStore:
         if not self._db:
             raise RuntimeError("Database not initialized")
 
-        cutoff = (datetime.now(timezone.utc) - timedelta(minutes=window_minutes)).isoformat()
+        cutoff = (datetime.now(UTC) - timedelta(minutes=window_minutes)).isoformat()
 
         cursor = await self._db.execute(
             """
@@ -223,7 +225,7 @@ class NotificationStore:
         if not self._db:
             return
 
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
 
         await self._db.execute(
             """

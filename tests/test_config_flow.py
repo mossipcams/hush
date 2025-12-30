@@ -5,8 +5,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from homeassistant.config_entries import SOURCE_USER
 from homeassistant.data_entry_flow import FlowResultType
 
 from custom_components.hush.config_flow import HushConfigFlow, HushOptionsFlow, get_notify_services
@@ -19,7 +17,6 @@ from custom_components.hush.const import (
     DEFAULT_QUIET_HOURS_END,
     DEFAULT_QUIET_HOURS_START,
     DOMAIN,
-    Category,
     CategoryBehavior,
 )
 
@@ -75,9 +72,11 @@ class TestHushConfigFlow:
                 with patch.object(flow, "async_create_entry") as mock_create:
                     mock_create.return_value = {"type": FlowResultType.CREATE_ENTRY}
 
-                    result = await flow.async_step_user({
-                        CONF_DELIVERY_TARGET: "notify.mobile_app_phone",
-                    })
+                    result = await flow.async_step_user(
+                        {
+                            CONF_DELIVERY_TARGET: "notify.mobile_app_phone",
+                        }
+                    )
 
                     assert result["type"] == FlowResultType.CREATE_ENTRY
                     mock_create.assert_called_once()
@@ -93,7 +92,7 @@ class TestHushConfigFlow:
                 with patch.object(flow, "async_abort") as mock_abort:
                     mock_abort.return_value = {"type": FlowResultType.ABORT}
 
-                    result = await flow.async_step_user()
+                    await flow.async_step_user()
 
                     mock_abort.assert_called_once_with(reason="no_notify_services")
 
@@ -207,12 +206,14 @@ class TestHushOptionsFlow:
             with patch.object(flow, "async_create_entry") as mock_create:
                 mock_create.return_value = {"type": FlowResultType.CREATE_ENTRY}
 
-                result = await flow.async_step_init({
-                    CONF_DELIVERY_TARGET: "notify.mobile_app_other",
-                    CONF_QUIET_HOURS_ENABLED: False,
-                    CONF_QUIET_HOURS_START: "23:00",
-                    CONF_QUIET_HOURS_END: "06:00",
-                })
+                await flow.async_step_init(
+                    {
+                        CONF_DELIVERY_TARGET: "notify.mobile_app_other",
+                        CONF_QUIET_HOURS_ENABLED: False,
+                        CONF_QUIET_HOURS_START: "23:00",
+                        CONF_QUIET_HOURS_END: "06:00",
+                    }
+                )
 
                 mock_create.assert_called_once()
 
@@ -225,13 +226,15 @@ class TestHushOptionsFlow:
         flow.hass = mock_hass
 
         with patch.object(type(flow), "config_entry", new=mock_config_entry):
-            result = await flow.async_step_init({
-                CONF_DELIVERY_TARGET: "notify.mobile_app_test",
-                CONF_QUIET_HOURS_ENABLED: True,
-                CONF_QUIET_HOURS_START: "22:00",
-                CONF_QUIET_HOURS_END: "07:00",
-                "show_advanced": True,
-            })
+            result = await flow.async_step_init(
+                {
+                    CONF_DELIVERY_TARGET: "notify.mobile_app_test",
+                    CONF_QUIET_HOURS_ENABLED: True,
+                    CONF_QUIET_HOURS_START: "22:00",
+                    CONF_QUIET_HOURS_END: "07:00",
+                    "show_advanced": True,
+                }
+            )
 
         assert result["type"] == FlowResultType.FORM
         assert result["step_id"] == "advanced"
@@ -252,13 +255,15 @@ class TestHushOptionsFlow:
             with patch.object(flow, "async_create_entry") as mock_create:
                 mock_create.return_value = {"type": FlowResultType.CREATE_ENTRY}
 
-                result = await flow.async_step_advanced({
-                    "safety_behavior": CategoryBehavior.ALWAYS_NOTIFY,
-                    "security_behavior": CategoryBehavior.NOTIFY_RESPECT_QUIET,
-                    "device_behavior": CategoryBehavior.NOTIFY_ONCE_PER_HOUR,
-                    "motion_behavior": CategoryBehavior.LOG_ONLY,
-                    "info_behavior": CategoryBehavior.NOTIFY_WITH_DEDUP,
-                })
+                await flow.async_step_advanced(
+                    {
+                        "safety_behavior": CategoryBehavior.ALWAYS_NOTIFY,
+                        "security_behavior": CategoryBehavior.NOTIFY_RESPECT_QUIET,
+                        "device_behavior": CategoryBehavior.NOTIFY_ONCE_PER_HOUR,
+                        "motion_behavior": CategoryBehavior.LOG_ONLY,
+                        "info_behavior": CategoryBehavior.NOTIFY_WITH_DEDUP,
+                    }
+                )
 
                 mock_create.assert_called_once()
                 call_args = mock_create.call_args

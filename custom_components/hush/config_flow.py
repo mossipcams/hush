@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
@@ -21,13 +20,13 @@ from .const import (
     CONF_QUIET_HOURS_ENABLED,
     CONF_QUIET_HOURS_END,
     CONF_QUIET_HOURS_START,
+    DEFAULT_CATEGORY_BEHAVIORS,
     DEFAULT_QUIET_HOURS_ENABLED,
     DEFAULT_QUIET_HOURS_END,
     DEFAULT_QUIET_HOURS_START,
     DOMAIN,
     Category,
     CategoryBehavior,
-    DEFAULT_CATEGORY_BEHAVIORS,
 )
 
 
@@ -49,9 +48,7 @@ class HushConfigFlow(ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle the initial step."""
         # Only allow one instance
         await self.async_set_unique_id(DOMAIN)
@@ -80,7 +77,9 @@ class HushConfigFlow(ConfigFlow, domain=DOMAIN):
 
         # Build service options
         service_options = [
-            selector.SelectOptionDict(value=svc, label=svc.replace("notify.", "").replace("_", " ").title())
+            selector.SelectOptionDict(
+                value=svc, label=svc.replace("notify.", "").replace("_", " ").title()
+            )
             for svc in notify_services
         ]
 
@@ -109,9 +108,7 @@ class HushConfigFlow(ConfigFlow, domain=DOMAIN):
 class HushOptionsFlow(OptionsFlow):
     """Handle Hush options."""
 
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Manage basic options."""
         if user_input is not None:
             # Check if user wants advanced settings
@@ -135,7 +132,9 @@ class HushOptionsFlow(OptionsFlow):
             notify_services.insert(0, current_target)
 
         service_options = [
-            selector.SelectOptionDict(value=svc, label=svc.replace("notify.", "").replace("_", " ").title())
+            selector.SelectOptionDict(
+                value=svc, label=svc.replace("notify.", "").replace("_", " ").title()
+            )
             for svc in notify_services
         ]
 
@@ -182,11 +181,21 @@ class HushOptionsFlow(OptionsFlow):
         if user_input is not None:
             # Merge pending options with category behaviors
             category_behaviors = {
-                Category.SAFETY: user_input.get("safety_behavior", DEFAULT_CATEGORY_BEHAVIORS[Category.SAFETY]),
-                Category.SECURITY: user_input.get("security_behavior", DEFAULT_CATEGORY_BEHAVIORS[Category.SECURITY]),
-                Category.DEVICE: user_input.get("device_behavior", DEFAULT_CATEGORY_BEHAVIORS[Category.DEVICE]),
-                Category.MOTION: user_input.get("motion_behavior", DEFAULT_CATEGORY_BEHAVIORS[Category.MOTION]),
-                Category.INFO: user_input.get("info_behavior", DEFAULT_CATEGORY_BEHAVIORS[Category.INFO]),
+                Category.SAFETY: user_input.get(
+                    "safety_behavior", DEFAULT_CATEGORY_BEHAVIORS[Category.SAFETY]
+                ),
+                Category.SECURITY: user_input.get(
+                    "security_behavior", DEFAULT_CATEGORY_BEHAVIORS[Category.SECURITY]
+                ),
+                Category.DEVICE: user_input.get(
+                    "device_behavior", DEFAULT_CATEGORY_BEHAVIORS[Category.DEVICE]
+                ),
+                Category.MOTION: user_input.get(
+                    "motion_behavior", DEFAULT_CATEGORY_BEHAVIORS[Category.MOTION]
+                ),
+                Category.INFO: user_input.get(
+                    "info_behavior", DEFAULT_CATEGORY_BEHAVIORS[Category.INFO]
+                ),
             }
 
             return self.async_create_entry(

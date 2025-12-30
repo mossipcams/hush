@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -24,7 +23,9 @@ class TestNotificationStore:
     """Tests for NotificationStore."""
 
     @pytest.mark.asyncio
-    async def test_initialize_creates_database(self, store: NotificationStore, tmp_storage_path: Path) -> None:
+    async def test_initialize_creates_database(
+        self, store: NotificationStore, tmp_storage_path: Path
+    ) -> None:
         """Test that initialization creates the database."""
         db_path = tmp_storage_path / "notifications.db"
         assert db_path.exists()
@@ -104,8 +105,12 @@ class TestNotificationStore:
     async def test_get_today_stats(self, store: NotificationStore) -> None:
         """Test getting today's stats."""
         await store.async_add_notification(message="Info 1", category=Category.INFO, delivered=True)
-        await store.async_add_notification(message="Info 2", category=Category.INFO, delivered=False)
-        await store.async_add_notification(message="Safety", category=Category.SAFETY, delivered=True)
+        await store.async_add_notification(
+            message="Info 2", category=Category.INFO, delivered=False
+        )
+        await store.async_add_notification(
+            message="Safety", category=Category.SAFETY, delivered=True
+        )
 
         stats = await store.async_get_today_stats()
         assert stats["total"] == 3

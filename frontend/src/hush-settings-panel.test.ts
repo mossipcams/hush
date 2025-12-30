@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { html, fixture, elementUpdated } from "@open-wc/testing";
+import { html, fixture } from "@open-wc/testing";
 import "./hush-settings-panel";
 import type { HushSettingsPanel } from "./hush-settings-panel";
 import type { HushConfig } from "./types";

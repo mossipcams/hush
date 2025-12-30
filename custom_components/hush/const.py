@@ -75,9 +75,7 @@ CATEGORY_NAMES: dict[Category, str] = {
 SAFETY_PATTERNS: Final = frozenset(
     {"smoke", "co2", "carbon", "leak", "flood", "water_sensor", "gas"}
 )
-SECURITY_PATTERNS: Final = frozenset(
-    {"door", "window", "lock", "alarm", "siren", "garage"}
-)
+SECURITY_PATTERNS: Final = frozenset({"door", "window", "lock", "alarm", "siren", "garage"})
 DEVICE_PATTERNS: Final = frozenset({"battery", "offline", "unavailable", "connectivity"})
 MOTION_PATTERNS: Final = frozenset({"motion", "occupancy", "presence"})
 
