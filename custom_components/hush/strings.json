@@ -1,0 +1,74 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Hush",
+        "description": "Choose where to send notifications. That's it - smart defaults handle the rest!",
+        "data": {
+          "delivery_target": "Send notifications to"
+        }
+      }
+    },
+    "error": {
+      "no_notify_services": "No notification services found. Please set up a notify service first (e.g., Mobile App)."
+    },
+    "abort": {
+      "already_configured": "Hush is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Hush Settings",
+        "description": "Configure notification behavior. Most users don't need to change these.",
+        "data": {
+          "delivery_target": "Send notifications to",
+          "quiet_hours_enabled": "Enable quiet hours",
+          "quiet_hours_start": "Quiet hours start",
+          "quiet_hours_end": "Quiet hours end"
+        }
+      },
+      "advanced": {
+        "title": "Advanced Settings",
+        "description": "Customize behavior per category.",
+        "data": {
+          "safety_behavior": "Safety (leak, smoke, CO)",
+          "security_behavior": "Security (doors, locks)",
+          "device_behavior": "Device (offline, battery)",
+          "motion_behavior": "Motion",
+          "info_behavior": "Other"
+        }
+      }
+    }
+  },
+  "services": {
+    "notify": {
+      "name": "Send smart notification",
+      "description": "Send a notification with automatic classification and smart routing.",
+      "fields": {
+        "message": {
+          "name": "Message",
+          "description": "The notification message to send."
+        },
+        "title": {
+          "name": "Title",
+          "description": "Optional title for the notification."
+        },
+        "data": {
+          "name": "Data",
+          "description": "Additional data for the notification.",
+          "fields": {
+            "category": {
+              "name": "Category",
+              "description": "Override auto-detected category (safety, security, device, motion, info)."
+            },
+            "entity_id": {
+              "name": "Entity ID",
+              "description": "Entity ID for classification. Auto-detected from trigger context if not provided."
+            }
+          }
+        }
+      }
+    }
+  }
+}
